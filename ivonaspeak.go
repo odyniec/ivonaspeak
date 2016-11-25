@@ -28,11 +28,11 @@ func ucFirst(s string) string {
 func listVoices(filter string) {
     voiceOptions := ivona.Voice{}
 
-    if (filter != "all") {
+    if filter != "all" {
         for _, s := range strings.Split(filter, ",") {
-            if (strings.ToLower(s) == "male") {
+            if strings.ToLower(s) == "male" {
                 voiceOptions.Gender = "Male"
-            } else if (strings.ToLower(s) == "female") {
+            } else if strings.ToLower(s) == "female" {
                 voiceOptions.Gender = "Female"
             } else {
                 voiceOptions.Language = s
@@ -51,7 +51,7 @@ func listVoices(filter string) {
 
 func main() {
     flag.Usage = func() {
-        fmt.Fprintf(os.Stderr, `Usage: %s [options] text output-file
+        fmt.Fprintf(os.Stderr, `Usage: %s [options] [text] output-file
 
   -access-key KEY            Ivona Speech Cloud access key
   -secret-key KEY            Ivona Speech Cloud secret key
@@ -60,13 +60,18 @@ func main() {
   -language LANGUAGE         Voice language (e.g., "en-US")
   -list-voices FILTER        List available voices and exit
                              (FILTER examples: "all", "male", "male,en-US")
-`, 
+  -text-file                 File containing text to be synthesized
+                             (e.g., "speech.txt", "anecdote.xml")
+  -format FORMAT             Format of text data
+                             ("text" or "ssml", default: "text")
+`,
             os.Args[0])
     }
 
     var voicesFilter string
     var accessKey, secretKey string
     var voiceName, voiceGender, voiceLanguage string
+    var textFile, textFormat string
 
     flag.StringVar(&accessKey, "access-key", "",
         "Ivona Speech Cloud access key")
@@ -77,6 +82,9 @@ func main() {
     flag.StringVar(&voiceName, "name", "", "Voice name")
     flag.StringVar(&voiceGender, "gender", "", "Voice gender")
     flag.StringVar(&voiceLanguage, "language", "", "Voice language")
+    flag.StringVar(&textFile, "text-file", "",
+        "File containing text to be synthesized")
+    flag.StringVar(&textFormat, "format", "", "Format of text data")
 
     flag.Parse()
 
@@ -96,19 +104,37 @@ func main() {
 
     client = ivona.New(accessKey, secretKey)
 
-    if (voicesFilter != "") {
+    if voicesFilter != "" {
         // List voices and exit
         listVoices(voicesFilter)
         return
     }
 
+    var text string
+    
+    if textFile != "" {
+        contents, err := ioutil.ReadFile(textFile)
+
+        if err != nil {
+            log.Fatal(err)
+        }
+
+        text = string(contents)
+    }
+        
     // Check if the required arguments have been set
-    if len(flag.Args()) < 2 {
+    if len(flag.Args()) < 1 || text == "" {
         flag.Usage()
         return
     }
 
-    speechOptions := ivona.NewSpeechOptions(flag.Args()[0])
+    if text == "" {
+        text = flag.Args()[0]
+    }
+
+    outputFile := flag.Args()[len(flag.Args())-1]
+
+    speechOptions := ivona.NewSpeechOptions(text)
 
     if len(voiceName) > 0 { speechOptions.Voice.Name = voiceName }
     if len(voiceGender) > 0 {
@@ -117,11 +143,17 @@ func main() {
     }
     if len(voiceLanguage) > 0 { speechOptions.Voice.Language = voiceLanguage }
 
+    if strings.ToLower(textFormat) == "ssml" {
+        speechOptions.Input.Type = "application/ssml+xml"
+    } else {
+        speechOptions.Input.Type = "text/plain"
+    }
+    
     r, err := client.CreateSpeech(speechOptions)
 
     if err != nil {
         log.Fatal(err)
     }
 
-    ioutil.WriteFile("./" + flag.Args()[1], r.Audio, 0644)
+    ioutil.WriteFile(outputFile, r.Audio, 0644)
 }
