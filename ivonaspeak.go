@@ -121,15 +121,21 @@ func main() {
 
         text = string(contents)
     }
-        
-    // Check if the required arguments have been set
-    if len(flag.Args()) < 1 || text == "" {
-        flag.Usage()
-        return
-    }
-
+    
     if text == "" {
+        // Make sure we have at least two arguments (text and output file)
+        if len(flag.Args()) < 2 {
+            flag.Usage()
+            return
+        }
+
         text = flag.Args()[0]
+    } else {
+        // Make sure we have at least one argument (output file)
+        if len(flag.Args()) < 1 {
+            flag.Usage()
+            return
+        }
     }
 
     outputFile := flag.Args()[len(flag.Args())-1]
